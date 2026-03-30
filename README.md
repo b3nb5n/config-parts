@@ -2,8 +2,10 @@
 
 _Modularly construct nixos and home manager configurations._
 
-`config-parts` provides flake parts modules that represent the arguments to the
-standard constructors for the supported configurations and constructs 
+`config-parts` provides [flake-parts](https://github.com/hercules-ci/flake-parts) 
+modules that represent the arguments to the standard constructors for the
+supported configurations. The configurations are then built by applying the 
+constructors to the provided arguments.
 
 `config-parts` aims to be a minimal mirror of each constructor's
 arguments. It is _very_ lightweight.

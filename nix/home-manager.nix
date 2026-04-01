@@ -1,6 +1,7 @@
 { inputs, lib, config, ... }@flakeArgs:
 let
   flakeLib = import ./lib.nix flakeArgs;
+  inherit (flakeLib) argsLib hmLib;
 
   inherit (lib.types)
     unspecified uniq bool nullOr listOf lazyAttrsOf functionTo submodule
@@ -24,41 +25,41 @@ in {
   options.flake = {
     homeConfigurationArgs' = lib.mkOption {
       default = { };
-      type = let options = flakeLib.options.mkNullableOptions optionArgs;
-      in submodule { inherit options; };
+      type = submodule { options = argsLib.mkGlobalOptions optionArgs; };
     };
 
     homeConfigurationArgs = lib.mkOption {
       default = { };
-      type = lazyAttrsOf (submodule ({ name, ... }:
-        let
-          output = flakeLib.homeManager.parseOutputName name;
+      type = lazyAttrsOf (submodule ({ name, ... }: {
+        options = argsLib.mkOptions optionArgs;
 
-          outputUser = output.outputUser;
-          outputHost = output.outputHost or null;
-        in {
-          options = flakeLib.options.mkOptions optionArgs;
+        config = lib.mkMerge [
+          (argsLib.filterExcluded config.flake.homeConfigurationArgs')
 
-          imports = [
-            (flakeLib.config.mkGlobalModule config.flake.homeConfigurationArgs')
-            (flakeLib.homeManager.mkHostPkgsModule outputHost)
-          ];
+          (let
+            output = hmLib.parseOutputName name;
 
-          config = {
+            outputUser = output.outputUser;
+            outputHost = output.outputHost or null;
+          in {
             _constructor = lib.mkIf (inputs ? "home-manager")
               (lib.mkDefault inputs.home-manager.lib.homeManagerConfiguration);
+
+            pkgs = let hostConfig = hmLib.defaultHostConfig outputHost;
+            in lib.mkIf (hostConfig != null) (lib.mkDefault hostConfig.pkgs);
 
             modules = [{
               _module.args = output // { outputName = name; };
               home.username = lib.mkDefault outputUser;
             }];
-          };
-        }));
+          })
+        ];
+      }));
     };
   };
 
   config.flake.homeConfigurations = let
-    mkConfig = args: args._constructor (flakeLib.config.filter args);
+    mkConfig = args: args._constructor (argsLib.filter args);
     mkConfigs = lib.attrsets.mapAttrs (_name: mkConfig);
   in mkConfigs config.flake.homeConfigurationArgs;
 }

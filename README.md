@@ -82,10 +82,8 @@ Add `config-parts` to the inputs of your `flake.nix`
     modules = [
       # In addition to `outputName`, `config-parts` passes the arguments
       # `outputUser` and `outputHost` with the values of `<user>` and `<host>`.
-      #
-      # `outputHost` is only passed if the output includes a `<host>`.
-      # Shared modules should provide a default.
-      ({ outputUser, outputHost ? null, ... }: {
+      # If the output name doesn't include a `<host>`, `outputHost` is null.
+      ({ outputUser, outputHost, ... }: {
         home = {
           stateVersion = "25.11";
           homeDirectory = "/home/${outputUser}";

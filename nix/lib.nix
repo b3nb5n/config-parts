@@ -1,44 +1,40 @@
 { lib, config, ... }: {
-  options = rec {
-    mkOptionArgs = args:
-      let
-        empty = args.type.emptyValue;
-        defaultArgs = if !(args ? "default") && (empty ? "value") then {
-          default = empty.value;
-        } else
-          { };
-      in args // defaultArgs;
+  argsLib = let
+    inherit (lib.types) enum either;
+    inherit (lib.attrsets) mapAttrs filterAttrs;
+  in rec {
+    excluded = "CONFIG_PARTS_EXCLUDED_ARGUMENT";
+    excludedOr = either (enum [ excluded ]);
 
-    mkOptions = optionArgs:
-      lib.attrsets.mapAttrs (_name: args: lib.mkOption (mkOptionArgs args))
-      optionArgs;
-
-    mkNullableArgs = args:
-      args // {
-        default = null;
-        type = if (args.type.emptyValue.value or false) != null then
-          lib.types.nullOr args.type
-        else
-          args.type;
-      };
-
-    mkNullableOptions = optionArgs:
-      lib.attrsets.mapAttrs (_name: args: lib.mkOption (mkNullableArgs args))
-      optionArgs;
-  };
-
-  config = rec {
-    filterNull = lib.attrsets.filterAttrs (_name: value: value != null);
-
+    filterExcluded = filterAttrs (_name: value: value != excluded);
     isEscaped = lib.strings.hasPrefix "_";
-    filterEscaped = lib.attrsets.filterAttrs (name: _value: !(isEscaped name));
+    filterEscaped = filterAttrs (name: _value: !(isEscaped name));
+    filter = args: filterEscaped (filterExcluded args);
 
-    filter = args: filterEscaped (filterNull args);
+    mkOption = args:
+      let
+        typeArgs = { type = excludedOr args.type; };
+        _defaultArgs = { default = excluded; };
+        defaultArgs = if args ? "default" then { } else _defaultArgs;
+      in lib.mkOption (args // typeArgs // defaultArgs);
 
-    mkGlobalModule = args: { config = filterNull args; };
+    mkOptions = mapAttrs (_name: mkOption);
+
+    mkGlobalOption = args:
+      lib.mkOption (args // {
+        type = excludedOr args.type;
+        default = excluded;
+      });
+
+    mkGlobalOptions = mapAttrs (_name: mkGlobalOption);
+
+    filterExcluded = filterAttrs (_name: value: value != excluded);
+    isEscaped = lib.strings.hasPrefix "_";
+    filterEscaped = filterAttrs (name: _value: !(isEscaped name));
+    filter = args: filterEscaped (filterExcluded args);
   };
 
-  homeManager = rec {
+  hmLib = {
     parseOutputName = name:
       let
         split = lib.strings.splitString "@" name;
@@ -72,12 +68,5 @@
         builtins.elemAt hostConfigs 0
       else
         null;
-
-    mkHostPkgsModule = hostName: {
-      config.pkgs = let
-        hostConfig = defaultHostConfig hostName;
-        hasPkgs = (hostConfig != null) && (hostConfig ? "pkgs");
-      in lib.mkIf hasPkgs (lib.mkDefault hostConfig.pkgs);
-    };
   };
 }

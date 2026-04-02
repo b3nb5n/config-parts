@@ -45,10 +45,7 @@ in {
             _constructor = lib.mkIf (inputs ? "nixpkgs")
               (lib.mkDefault inputs.nixpkgs.lib.nixosSystem);
 
-            modules = [{
-              _module.args = { outputName = name; };
-              networking.hostName = lib.mkDefault name;
-            }];
+            modules = [{ _module.args.outputName = name; }];
           }
         ];
       }));

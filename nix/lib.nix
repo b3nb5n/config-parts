@@ -1,4 +1,4 @@
-{ lib, config, ... }: {
+{ lib, ... }: {
   argsLib = let
     inherit (lib.types) enum either;
     inherit (lib.attrsets) mapAttrs filterAttrs;
@@ -11,62 +11,39 @@
     filterEscaped = filterAttrs (name: _value: !(isEscaped name));
     filter = args: filterEscaped (filterExcluded args);
 
-    mkOption = args:
+    mkOption = name: args:
       let
-        typeArgs = { type = excludedOr args.type; };
+        escaped = isEscaped name;
+        mkType = if escaped then (ty: ty) else excludedOr;
+        typeArgs = { type = mkType args.type; };
         _defaultArgs = { default = excluded; };
         defaultArgs = if args ? "default" then { } else _defaultArgs;
       in lib.mkOption (args // typeArgs // defaultArgs);
 
-    mkOptions = mapAttrs (_name: mkOption);
+    mkOptions = mapAttrs mkOption;
 
-    mkGlobalOption = args:
+    mkGlobalOption = _name: args:
       lib.mkOption (args // {
         type = excludedOr args.type;
         default = excluded;
       });
 
-    mkGlobalOptions = mapAttrs (_name: mkGlobalOption);
-
-    filterExcluded = filterAttrs (_name: value: value != excluded);
-    isEscaped = lib.strings.hasPrefix "_";
-    filterEscaped = filterAttrs (name: _value: !(isEscaped name));
-    filter = args: filterEscaped (filterExcluded args);
+    mkGlobalOptions = mapAttrs mkGlobalOption;
   };
 
   hmLib = {
-    parseOutputName = name:
+    parseOutputName = outputName:
       let
-        split = lib.strings.splitString "@" name;
-        components = if (builtins.length split) <= 2 then split else [ name ];
-        componentAttr = idx: name:
-          if idx < (builtins.length components) then {
-            "${name}" = builtins.elemAt components idx;
-          } else
-            { };
-
-        user = componentAttr 0 "outputUser";
-        host = componentAttr 1 "outputHost";
-      in user // host;
-
-    defaultHostConfig = hostName:
-      let
-        allHostConfigs = [ config.flake.nixosConfigurations ];
-
-        getConfig = hostConfigAttrs:
-          if hostConfigAttrs ? "${hostName}" then
-            hostConfigAttrs.${hostName}
+        components = lib.strings.splitString "@" outputName;
+        component = idx:
+          if idx < (builtins.length components) then
+            builtins.elemAt components idx
           else
             null;
-
-        _hostConfigs = builtins.map getConfig allHostConfigs;
-        hostConfigs = builtins.filter (config: config != null) _hostConfigs;
-
-        hasHostName = builtins.isString hostName;
-        hasDefaultConfig = (builtins.length hostConfigs) == 1;
-      in if hasHostName && hasDefaultConfig then
-        builtins.elemAt hostConfigs 0
-      else
-        null;
+      in {
+        inherit outputName;
+        outputUser = component 0;
+        outputHost = component 1;
+      };
   };
 }

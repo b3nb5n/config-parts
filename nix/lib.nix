@@ -1,15 +1,33 @@
 { lib, ... }: {
   argsLib = let
-    inherit (lib.types) enum either;
+    inherit (lib.types) enum listOf either deferredModule;
     inherit (lib.attrsets) mapAttrs filterAttrs;
   in rec {
     excluded = "CONFIG_PARTS_EXCLUDED_ARGUMENT";
     excludedOr = either (enum [ excluded ]);
 
-    filterExcluded = filterAttrs (_name: value: value != excluded);
+    isExcluded = value: value == excluded;
     isEscaped = lib.strings.hasPrefix "_";
-    filterEscaped = filterAttrs (name: _value: !(isEscaped name));
-    filter = args: filterEscaped (filterExcluded args);
+
+    mkGlobalOption = _name: args:
+      lib.mkOption (args // {
+        type = excludedOr args.type;
+        default = excluded;
+      });
+
+    globalOptions = {
+      _modules = lib.mkOption {
+        type = listOf deferredModule;
+        default = [ ];
+      };
+    };
+
+    mkGlobalOptions = optionArgs:
+      globalOptions // (mapAttrs mkGlobalOption optionArgs);
+
+    isGlobal = name: (builtins.elem name (builtins.attrNames globalOptions));
+    filterGlobal =
+      filterAttrs (name: value: !(isGlobal name) && !(isExcluded value));
 
     mkOption = name: args:
       let
@@ -22,13 +40,8 @@
 
     mkOptions = mapAttrs mkOption;
 
-    mkGlobalOption = _name: args:
-      lib.mkOption (args // {
-        type = excludedOr args.type;
-        default = excluded;
-      });
-
-    mkGlobalOptions = mapAttrs mkGlobalOption;
+    filter =
+      filterAttrs (name: value: !(isEscaped name) && !(isExcluded value));
   };
 
   hmLib = {

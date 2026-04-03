@@ -6,43 +6,41 @@ let
   inherit (lib.types)
     unspecified uniq bool nullOr listOf lazyAttrsOf functionTo submodule
     deferredModule;
-
-  optionArgs = {
-    _constructor = { type = uniq (functionTo unspecified); };
-
-    # based on definitions from:
-    # https://github.com/nix-community/home-manager/blob/master/lib/default.nix
-
-    modules = { type = listOf deferredModule; };
-    pkgs = { type = uniq unspecified; };
-
-    check = { type = nullOr bool; };
-    extraSpecialArgs = { type = nullOr (lazyAttrsOf (uniq unspecified)); };
-    lib = { type = nullOr (uniq unspecified); };
-    minimal = { type = nullOr bool; };
-  };
 in {
   options.flake = {
     homeConfigurationArgs' = lib.mkOption {
-      default = { };
-      type = submodule { options = argsLib.mkGlobalOptions optionArgs; };
+      default = [ ];
+      type = listOf deferredModule;
     };
 
     homeConfigurationArgs = lib.mkOption {
       default = { };
       type = lazyAttrsOf (submodule ({ name, ... }: {
-        options = argsLib.mkOptions optionArgs;
+        imports = config.flake.homeConfigurationArgs';
 
-        config = lib.mkMerge [
-          (argsLib.filterExcluded config.flake.homeConfigurationArgs')
+        options = argsLib.mkOptions {
+          _constructor = { type = uniq (functionTo unspecified); };
 
-          {
-            _constructor = lib.mkIf (inputs ? "home-manager")
-              (lib.mkDefault inputs.home-manager.lib.homeManagerConfiguration);
+          # based on definitions from:
+          # https://github.com/nix-community/home-manager/blob/master/lib/default.nix
 
-            modules = [{ _module.args = hmLib.parseOutputName name; }];
-          }
-        ];
+          modules = { type = listOf deferredModule; };
+          pkgs = { type = uniq unspecified; };
+
+          check = { type = nullOr bool; };
+          extraSpecialArgs = { type = nullOr (lazyAttrsOf (uniq unspecified)); };
+          lib = { type = nullOr (uniq unspecified); };
+          minimal = { type = nullOr bool; };
+        };
+
+        config = rec {
+          _module.args = hmLib.parseOutputName name;
+
+          _constructor = lib.mkIf (inputs ? "home-manager")
+            (lib.mkDefault inputs.home-manager.lib.homeManagerConfiguration);
+
+          modules = [{ inherit _module; }];
+        };
       }));
     };
   };

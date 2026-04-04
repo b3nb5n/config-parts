@@ -1,6 +1,6 @@
 # Config Parts
 
-_Modularly construct nixos and home manager configurations._
+_Modularly construct NixOS and Home Manager configurations._
 
 `config-parts` provides [flake-parts](https://github.com/hercules-ci/flake-parts) 
 modules that represent the arguments to the standard constructors for the
@@ -18,12 +18,9 @@ Add `config-parts` to the inputs of your `flake.nix`
 {
   inputs = {
     flake-parts.url = "github:hercules-ci/flake-parts";
-    config-parts = {
-      url = "github:b3nb5n/config-parts";
 
-      # `config-parts` has no inputs! No need to add any `follows` attributes.
-      # inputs = {};
-    };
+    # `config-parts` has no inputs! No need to add any `follows` attributes.
+    config-parts.url = "github:b3nb5n/config-parts";
   };
 }
 ```
@@ -45,10 +42,7 @@ Add `config-parts` to the inputs of your `flake.nix`
       # `config-parts` passes the argument `outputName` with the value of `<host>`.
       ({ outputName, ... }: {
         system.stateVersion = "25.11";
-        boot.loader.systemd-boot.enable = true;
-
-        # `config-parts` defaults `networking.hostName` to `outputName`.
-        # networking.hostName = outputName;
+        networking.hostName = outputName;
       })
     ];
   };
@@ -65,19 +59,13 @@ Add `config-parts` to the inputs of your `flake.nix`
 ```nix
 { inputs, config, ... }: {
   # Import the home manager module.
-  imports = [ inputs.config-parts.flakeModules.homeManager ];
+  imports = [ inputs.config-parts.flakeModules.home-manager ];
 
   flake.homeConfigurationArgs."<user>@<host>" = {
     # Put the arguments you would normally pass to
     # `home-manager.lib.homeManagerConfiguration` here.
 
-    # `config-parts` defaults `pkgs` to the `pkgs` attribute of the
-    # corresponding `<host>` configuration.
-    #
-    # If the output name doesn't include a `<host>` or the `<host>`
-    # configuration isn't in the flake you must provide `pkgs` manually.
-    # 
-    # pkgs = config.flake.nixosConfigurations."<host>".pkgs;
+    pkgs = import inputs.nixpkgs { system = "x86_64-linux"; };
 
     modules = [
       # In addition to `outputName`, `config-parts` passes the arguments
@@ -86,10 +74,8 @@ Add `config-parts` to the inputs of your `flake.nix`
       ({ outputUser, outputHost, ... }: {
         home = {
           stateVersion = "25.11";
+          username = outputUser;
           homeDirectory = "/home/${outputUser}";
-
-          # `config-parts` defaults `home.username` to `outputUser`.
-          # username = outputUser;
         };
       })
     ];
@@ -105,19 +91,31 @@ Add `config-parts` to the inputs of your `flake.nix`
 
 ## Global Arguments
 
-```nix
-{ lib, config, ... }: {
-  flake = {
-    # Use the `<output>'` attribute to set arguments for all configurations.
-    nixosConfigurationArgs' = {
-      check = false;
-      modules = [{ nixpkgs.config.allowUnfree = true; }];
-    };
+Use the `<output>'` attribute to set modules to be merged into all arguments.
 
-    nixosConfigurationArgs."<host>" = {
-      # Use `lib.mkForce` to override global arguments.
-      check = lib.mkForce false;
-    };
+```nix
+{ lib, config, self, ... }: {
+  flake = {
+    nixosConfigurationArgs' = [{
+      # These modules will be be included in all nixos configurations.
+      modules = [
+        ({ outputName, ... }: {
+          nixpkgs.config.allowUnfree = true; 
+          networking.hostName = lib.mkDefault outputName;
+        })
+      ];
+    }];
+
+    homeConfigurationArgs' = [
+      # The `config-parts` arguments are also passed to these global modules.
+      ({ outputUser, outputHost, ... }: {
+        # Inherit the host configuration's `pkgs` by default.
+        pkgs = lib.mkIf (outputHost != null && self.nixosConfigurations ? ${outputHost})
+          (lib.mkDefault self.nixosConfigurations.${outputHost}.pkgs);
+
+        modules = [{ home.username = lib.mkDefault outputUser; }];
+      })
+    ];
   };
 }
 ```
@@ -130,9 +128,15 @@ If you use a non-standard input name you must pass the constructor explicitly.
 ```nix
 { inputs, ... }: {
   flake = {
-    # Use the `_constructor` argument to set the configuration constructor function.
-    nixosConfigurationArgs'._constructor =
+    # Use the `_constructor` argument to set function applied to the arguments
+    # to construct the configuration.
+    nixosConfigurationArgs.host._constructor =
       inputs.nixpkgs-unstable.lib.nixosSystem;
+
+    # Use a global argument to set a default `_consturctor` for all configurations
+    homeConfigurationArgs' = [{
+      _constructor = lib.mkDefault inputs.hm.lib.homeManagerConfiguration;
+    }];
   };
 }
 ```

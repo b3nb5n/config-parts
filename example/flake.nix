@@ -3,7 +3,7 @@
     nixpkgs.url = "nixpkgs/release-25.11";
 
     flake-parts.url = "github:hercules-ci/flake-parts";
-    config-parts.url = "path:/home/ben/Desktop/config-parts";
+    config-parts.url = "github:b3nb5n/config-parts";
 
     home-manager = {
       url = "github:nix-community/home-manager/release-25.11";

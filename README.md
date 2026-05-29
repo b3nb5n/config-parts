@@ -3,9 +3,9 @@
 _Modularly construct NixOS and Home Manager configurations._
 
 `config-parts` provides [flake-parts](https://github.com/hercules-ci/flake-parts) 
-modules that represent the arguments to `nixpkgs.lib.nixosSystem` and
-`home-manager.lib.homeManagerConfiguration`. The configurations are then
-created by applying the constructors to the provided arguments.
+modules that represent the arguments to the standard configuration constructors
+`nixpkgs.lib.nixosSystem` and `home-manager.lib.homeManagerConfiguration`.
+The configurations are then created by applying the constructors to the evaluated arguments.
 
 `config-parts` aims to be a minimal mirror of each constructor's
 arguments. It is _very_ lightweight.
@@ -35,8 +35,6 @@ Add `config-parts` to the inputs of your `flake.nix`
   flake.nixosConfigurationArgs."<host>" = {
     # Put the arguments you would normally pass to
     # `nixpkgs.lib.nixosSystem` here.
-
-    system = "x86_64-linux";
 
     modules = [
       # `config-parts` passes the argument `outputName` with the value of `<host>`.
@@ -128,9 +126,9 @@ If you use a non-standard input name you must pass the constructor explicitly.
 ```nix
 { inputs, ... }: {
   flake = {
-    # Use the `_constructor` argument to set function applied to the arguments
-    # to construct the configuration.
-    nixosConfigurationArgs.host._constructor =
+    # Use the `_constructor` option to set the function to apply to the arguments
+    # when constructing the configuration.
+    nixosConfigurationArgs."<host>"._constructor =
       inputs.nixpkgs-unstable.lib.nixosSystem;
 
     # Use a global argument to set a default `_consturctor` for all configurations
@@ -143,8 +141,8 @@ If you use a non-standard input name you must pass the constructor explicitly.
 
 ## Supported Configurations
 
-| Configuration | Module | Output | Input | Constructor |
-| --- | --- | --- | --- | --- |
-| NixOS | `nixos` | `nixosConfigurationArgs` |  `nixpkgs` | `lib.nixosSystem` |
-| Home Manager | `homeManager` | `homeConfigurationArgs` | `home-manager` | `lib.homeManagerConfiguration` |
+| Module | Output | Input | Constructor |
+| --- | --- | --- | --- |
+| `nixos` | `nixosConfigurationArgs` |  `nixpkgs` | `lib.nixosSystem` |
+| `home-manager` | `homeConfigurationArgs` | `home-manager` | `lib.homeManagerConfiguration` |
 
